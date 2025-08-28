@@ -1,6 +1,6 @@
 # Dodo Payments Assignment - Next.js + Supabase + Polar.sh
 
-[*Live Demo*](www.vercel.com)
+[*Live Demo*](https://arshan-dodo-assignment.vercel.app/)
 
 A tiny-but-complete boilerplate for **plug-and-play subscriptions** using:
 
@@ -13,17 +13,30 @@ A tiny-but-complete boilerplate for **plug-and-play subscriptions** using:
 
 ---
 <p align="left">
-  <img src="public/dodo-architecture.png" width="400" alt="Payments Architecture">
+  <img src="public/dodo-architecture.png" width="500" alt="Payments Architecture">
 </p>
 
-## What you get
+## Assumptions
+- One Supabase user = one Polar customer.  
+- Single `POLAR_PRODUCT_ID` supported.  
+- Webhooks assumed reliable + idempotent (simple upsert).  
+- Minimal UI (auth + subscribe + cancel).  
+- Supabase chosen, but flow portable to Firebase.  
+- Boilerplate designed to be reusable by swapping `.env` only.  
 
-- **Auth**: Email/password sign-in with persistent sessions (Supabase).
-- **Create Checkout**: `POST /api/checkout` creates a Polar checkout linked to the Supabase user.
-- **Webhooks**: `POST /api/polar-webhook` (Node runtime) validates Polar signatures and upserts subscription rows.
-- **DB**: A single `billing_subscriptions` table + Supabase auth.
 
----
+## Trade-offs
+- Picked Polar (clean API + Experience with it) over Stripe/Razorpay (ecosystem).  
+- Single `billing_subscriptions` table (no normalization).  
+- No webhook retry/backoff, just signature verify + upsert.  
+
+## Time Spent
+- Project setup and Initialization: ~2h  
+- Auth + checkout + webhooks: ~5h  
+- Schema + testing (ngrok): ~2h  
+- Docs + polish: ~2h  
+**Total: ~11h**
+
 
 ## Setup
 
