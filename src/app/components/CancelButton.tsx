@@ -11,11 +11,7 @@ type Props = {
 function SubmitInner({ className }: { className?: string }) {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className={className}
-    >
+    <button type="submit" disabled={pending} className={className}>
       {pending ? "Cancelling..." : "Cancel subscription"}
     </button>
   );

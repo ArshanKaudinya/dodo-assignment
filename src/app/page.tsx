@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { supabaseServer } from "@/lib/db/supabaseServer";
-import { supabaseAdmin } from "@/lib/db/supabaseAdmin";
 import { SubscribeButton } from "./components/SubscribeButton";
 import { CancelButton } from "./components/CancelButton";
+import { cancelSubscription } from "./actions";
 
 type SubStatus = "trialing" | "active" | "past_due" | "canceled" | "unpaid" | "revoked" | "paused";
 
@@ -19,9 +19,6 @@ type SubscriptionRow = {
   updated_at: string | null;
 };
 
-const POLAR_BASE =
-  process.env.POLAR_SERVER === "production" ? "https://api.polar.sh" : "https://sandbox-api.polar.sh";
-
 const fmtDate = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : null;
 
@@ -36,72 +33,6 @@ async function getCurrentSubscription(userId: string) {
     .maybeSingle<SubscriptionRow>();
   if (error) throw new Error(error.message);
   return data ?? null;
-}
-
-/** Server Action: cancel active sub via Polar customer portal (webhook will finalize state) */
-export async function cancelSubscription(): Promise<{ ok: boolean; message?: string }> {
-  "use server";
-
-  const token = process.env.POLAR_ACCESS_TOKEN;
-  if (!token) return { ok: false, message: "Missing POLAR_ACCESS_TOKEN" };
-
-  const s = await supabaseServer();
-  const { data: { user } } = await s.auth.getUser();
-  if (!user) return { ok: false, message: "Unauthorized" };
-
-  // Latest sub
-  const { data: sub, error: subErr } = await supabaseAdmin
-    .from("billing_subscriptions")
-    .select("id,status,current_period_end")
-    .eq("user_id", user.id)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<Pick<SubscriptionRow, "id" | "status" | "current_period_end">>();
-  if (subErr) return { ok: false, message: subErr.message };
-  if (!sub || sub.status !== "active") return { ok: false, message: "No active subscription" };
-
-  // Fetch Polar sub to get customer_id
-  const subRes = await fetch(`${POLAR_BASE}/v1/subscriptions/${sub.id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!subRes.ok) return { ok: false, message: `Fetch subscription failed (${subRes.status})` };
-  const subJson = (await subRes.json()) as { customer_id?: string; customerId?: string };
-  const polarCustomerId = subJson.customer_id ?? subJson.customerId;
-  if (!polarCustomerId) return { ok: false, message: "Missing Polar customer_id" };
-
-  // Customer session
-  const csRes = await fetch(`${POLAR_BASE}/v1/customer-sessions/`, {
-    method: "POST",
-    headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ customer_id: polarCustomerId }),
-    cache: "no-store",
-  });
-  if (!csRes.ok) return { ok: false, message: `Customer session failed (${csRes.status})` };
-  const { token: portalToken } = (await csRes.json()) as { token: string };
-
-  // Cancel via portal
-  const cancelRes = await fetch(`${POLAR_BASE}/v1/customer-portal/subscriptions/${sub.id}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${portalToken}`, "content-type": "application/json" },
-    cache: "no-store",
-  });
-  if (!cancelRes.ok) return { ok: false, message: `Cancel failed (${cancelRes.status})` };
-  const cancelJson = (await cancelRes.json()) as { current_period_end?: string | null };
-
-  // Optimistic local update
-  const { error: upErr } = await supabaseAdmin
-    .from("billing_subscriptions")
-    .update({
-      status: "canceled",
-      canceled_at: new Date().toISOString(),
-      current_period_end: cancelJson.current_period_end ?? sub.current_period_end ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", sub.id);
-  if (upErr) return { ok: false, message: upErr.message };
-
-  return { ok: true, message: "Canceled" };
 }
 
 export default async function Page() {
@@ -192,7 +123,7 @@ export default async function Page() {
               <div className="flex items-center gap-3">
                 <CancelButton
                   action={cancelSubscription}
-                  className="inline-flex items-center justify-center rounded-md border border-rose-300 bg-rose-100 px-4 py-2 font-medium text-rose-900 hover:bg-rose-50 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center cursor-pointer rounded-md border border-rose-300 bg-rose-100 px-4 py-2 font-medium text-rose-900 hover:bg-rose-50 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             ) : (
