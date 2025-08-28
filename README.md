@@ -12,7 +12,10 @@ A tiny-but-complete boilerplate for **plug-and-play subscriptions** using:
 > Swap the **`.env`** values and you’re off to the races.
 
 ---
-![Architecture Diagram](public/dodo-architecture.png)
+<p align="left">
+  <img src="public/dodo-architecture.png" width="400" alt="Payments Architecture">
+</p>
+
 ## What you get
 
 - **Auth**: Email/password sign-in with persistent sessions (Supabase).
